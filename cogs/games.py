@@ -91,7 +91,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Invalid Bet",
             description=(
-                f"Bet must be at least {config.MIN_BET} {config.CURRENCY_EMOJI}."
+                f"Bet must be at least {config.MIN_BET} {config.CURRENCY_EMOJI} Meowney."
             ),
             color=COLOR_ERROR,
         )
@@ -103,7 +103,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Invalid Bet",
             description=(
-                f"Bet cannot exceed {config.MAX_BET} {config.CURRENCY_EMOJI}."
+                f"Bet cannot exceed {config.MAX_BET} {config.CURRENCY_EMOJI} Meowney."
             ),
             color=COLOR_ERROR,
         )
@@ -116,7 +116,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Insufficient Funds",
             description=(
-                f"You only have {bal} {config.CURRENCY_EMOJI}. "
+                f"You only have {bal} {config.CURRENCY_EMOJI} Meowney. "
                 f"You can't bet {bet}."
             ),
             color=COLOR_ERROR,
