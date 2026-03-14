@@ -196,14 +196,8 @@ class Economy(commands.Cog):
             lines: list[str] = []
             for i, entry in enumerate(top, 1):
                 uid = entry["user_id"]
-                user_obj = self.bot.get_user(uid)
-                name = (
-                    f"@{user_obj.display_name}"
-                    if user_obj
-                    else f"User {uid}"
-                )
                 lines.append(
-                    f"#{i} · {name} — "
+                    f"#{i} · <@{uid}> — "
                     f"{format_meowney(entry['balance'])}"
                 )
 
@@ -215,7 +209,7 @@ class Economy(commands.Cog):
                 )
                 rank = await self._get_user_rank(invoker_id)
                 lines.append(
-                    f"\n#{rank} · @{interaction.user.display_name}"
+                    f"\n#{rank} · <@{invoker_id}>"
                     f" — {format_meowney(invoker_user['balance'])}"
                 )
 
