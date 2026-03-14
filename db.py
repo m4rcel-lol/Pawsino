@@ -177,10 +177,24 @@ async def update_cooldown(
     try:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         async with aiosqlite.connect(db_path) as db:
-            await db.execute(
-                f"UPDATE users SET {column} = ? WHERE user_id = ?",
-                (now, user_id),
-            )
+            if column == "last_daily":
+                await db.execute(
+                    "UPDATE users SET last_daily = ? "
+                    "WHERE user_id = ?",
+                    (now, user_id),
+                )
+            elif column == "last_weekly":
+                await db.execute(
+                    "UPDATE users SET last_weekly = ? "
+                    "WHERE user_id = ?",
+                    (now, user_id),
+                )
+            elif column == "last_monthly":
+                await db.execute(
+                    "UPDATE users SET last_monthly = ? "
+                    "WHERE user_id = ?",
+                    (now, user_id),
+                )
             await db.commit()
     except Exception as exc:
         logger.exception("Failed to update cooldown for user %s", user_id)
@@ -390,10 +404,24 @@ async def clear_cooldown(
     try:
         async with aiosqlite.connect(db_path) as db:
             await get_or_create_user(db_path, user_id)
-            await db.execute(
-                f"UPDATE users SET {column} = NULL WHERE user_id = ?",
-                (user_id,),
-            )
+            if column == "last_daily":
+                await db.execute(
+                    "UPDATE users SET last_daily = NULL "
+                    "WHERE user_id = ?",
+                    (user_id,),
+                )
+            elif column == "last_weekly":
+                await db.execute(
+                    "UPDATE users SET last_weekly = NULL "
+                    "WHERE user_id = ?",
+                    (user_id,),
+                )
+            elif column == "last_monthly":
+                await db.execute(
+                    "UPDATE users SET last_monthly = NULL "
+                    "WHERE user_id = ?",
+                    (user_id,),
+                )
             await db.commit()
     except Exception as exc:
         logger.exception(
