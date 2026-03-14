@@ -142,6 +142,8 @@ class BlackjackView(discord.ui.View):
         deck: list[tuple[str, str]],
         player_hand: list[tuple[str, str]],
         dealer_hand: list[tuple[str, str]],
+        guild_id: int | None = None,
+        member: discord.Member | None = None,
     ) -> None:
         super().__init__(timeout=60)
         self.cog = cog
@@ -150,6 +152,8 @@ class BlackjackView(discord.ui.View):
         self.deck = deck
         self.player_hand = player_hand
         self.dealer_hand = dealer_hand
+        self.guild_id = guild_id
+        self.member = member
         self.resolved = False
 
     async def interaction_check(
@@ -231,11 +235,17 @@ class BlackjackView(discord.ui.View):
                 config.DATABASE_PATH, self.user_id,
                 self.bet * 2, "blackjack",
             )
+            await self.cog._grant_game_xp(
+                self.guild_id, self.user_id, self.member,
+            )
         elif player_val > dealer_val:
             result = "You win!"
             new_bal = await db.update_balance(
                 config.DATABASE_PATH, self.user_id,
                 self.bet * 2, "blackjack",
+            )
+            await self.cog._grant_game_xp(
+                self.guild_id, self.user_id, self.member,
             )
         elif player_val == dealer_val:
             result = "Push! Bet refunded."
@@ -322,6 +332,25 @@ class Games(commands.Cog):
         super().__init__()
         self.bot = bot
 
+    async def _grant_game_xp(
+        self,
+        guild_id: int | None,
+        user_id: int,
+        member: discord.Member | None = None,
+    ) -> None:
+        """Grant XP from a game win via the Leveling cog."""
+        if not guild_id:
+            return
+        leveling = self.bot.get_cog("Leveling")
+        if leveling and hasattr(leveling, "grant_xp"):
+            try:
+                await leveling.grant_xp(
+                    guild_id, user_id,
+                    config.XP_PER_GAME_WIN, member,
+                )
+            except Exception:
+                logger.debug("XP grant failed (non-critical)", exc_info=True)
+
     @app_commands.command(
         name="coinflip",
         description="Flip a coin and bet on the outcome",
@@ -353,6 +382,16 @@ class Games(commands.Cog):
                 )
                 outcome = f"You won {format_meowney(bet)}!"
                 color = COLOR_SUCCESS
+                member = (
+                    interaction.user
+                    if isinstance(interaction.user, discord.Member)
+                    else None
+                )
+                await self._grant_game_xp(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    member,
+                )
             else:
                 new_bal = await db.update_balance(
                     config.DATABASE_PATH, interaction.user.id,
@@ -413,6 +452,16 @@ class Games(commands.Cog):
                 )
                 outcome = f"You won {format_meowney(winnings)}!"
                 color = COLOR_SUCCESS
+                member = (
+                    interaction.user
+                    if isinstance(interaction.user, discord.Member)
+                    else None
+                )
+                await self._grant_game_xp(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    member,
+                )
             else:
                 new_bal = await db.update_balance(
                     config.DATABASE_PATH, interaction.user.id,
@@ -493,6 +542,16 @@ class Games(commands.Cog):
                 )
                 outcome = f"You won {format_meowney(net)}!"
                 color = COLOR_SUCCESS
+                member = (
+                    interaction.user
+                    if isinstance(interaction.user, discord.Member)
+                    else None
+                )
+                await self._grant_game_xp(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    member,
+                )
             elif net == 0 and payout > 0:
                 new_bal = await db.get_balance(
                     config.DATABASE_PATH, interaction.user.id
@@ -559,6 +618,11 @@ class Games(commands.Cog):
             player_hand = [deck.pop(), deck.pop()]
             dealer_hand = [deck.pop(), deck.pop()]
 
+            member = (
+                interaction.user
+                if isinstance(interaction.user, discord.Member)
+                else None
+            )
             view = BlackjackView(
                 cog=self,
                 user_id=interaction.user.id,
@@ -566,6 +630,8 @@ class Games(commands.Cog):
                 deck=deck,
                 player_hand=player_hand,
                 dealer_hand=dealer_hand,
+                guild_id=interaction.guild_id,
+                member=member,
             )
 
             player_val = _hand_value(player_hand)
@@ -575,6 +641,11 @@ class Games(commands.Cog):
                 new_bal = await db.update_balance(
                     config.DATABASE_PATH, interaction.user.id,
                     winnings, "blackjack",
+                )
+                await self._grant_game_xp(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    member,
                 )
                 embed = view._build_game_embed(
                     reveal_dealer=True,
@@ -704,6 +775,16 @@ class Games(commands.Cog):
                 )
                 outcome = f"You won {format_meowney(net_payout)}!"
                 embed_color = COLOR_SUCCESS
+                member = (
+                    interaction.user
+                    if isinstance(interaction.user, discord.Member)
+                    else None
+                )
+                await self._grant_game_xp(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    member,
+                )
             else:
                 new_bal = await db.update_balance(
                     config.DATABASE_PATH, interaction.user.id,
@@ -789,6 +870,16 @@ class Games(commands.Cog):
                     f"{format_meowney(winnings)}!"
                 )
                 color = COLOR_SUCCESS
+                member = (
+                    interaction.user
+                    if isinstance(interaction.user, discord.Member)
+                    else None
+                )
+                await self._grant_game_xp(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    member,
+                )
             else:
                 new_bal = await db.update_balance(
                     config.DATABASE_PATH, interaction.user.id,
@@ -870,6 +961,16 @@ class Games(commands.Cog):
                 )
                 outcome = f"You won {format_meowney(bet)}!"
                 color = COLOR_SUCCESS
+                member = (
+                    interaction.user
+                    if isinstance(interaction.user, discord.Member)
+                    else None
+                )
+                await self._grant_game_xp(
+                    interaction.guild_id,
+                    interaction.user.id,
+                    member,
+                )
             else:
                 new_bal = await db.update_balance(
                     config.DATABASE_PATH, interaction.user.id,

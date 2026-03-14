@@ -18,6 +18,14 @@ class AdminOnly(app_commands.CheckFailure):
     """Raised when a non-admin invokes an admin-only command."""
 
 
+class UserBlacklisted(app_commands.CheckFailure):
+    """Raised when a blacklisted user invokes a command."""
+
+
+class WrongChannel(app_commands.CheckFailure):
+    """Raised when a command is used outside allowed channels."""
+
+
 def build_embed(
     title: str,
     description: str = "",
@@ -71,6 +79,19 @@ def format_remaining(td: timedelta) -> str:
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours}h {minutes}m {seconds}s"
+
+
+def xp_for_level(level: int) -> int:
+    """Return cumulative XP required to reach *level*."""
+    return int(config.BASE_XP_PER_LEVEL * level * (1 + level * 0.1))
+
+
+def level_from_xp(xp: int) -> int:
+    """Return the current level for a given XP total."""
+    lvl = 0
+    while lvl < config.MAX_LEVEL and xp >= xp_for_level(lvl + 1):
+        lvl += 1
+    return lvl
 
 
 def is_admin() -> app_commands.check:

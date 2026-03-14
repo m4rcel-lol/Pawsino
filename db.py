@@ -75,6 +75,32 @@ async def setup_database(db_path: str) -> None:
                         DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
                 )
             """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS guild_settings (
+                    guild_id          INTEGER PRIMARY KEY,
+                    allowed_channels  TEXT,
+                    blacklist_role_id INTEGER,
+                    xp_boost          REAL NOT NULL DEFAULT 0.0,
+                    setup_done        INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS leveling (
+                    guild_id   INTEGER NOT NULL,
+                    user_id    INTEGER NOT NULL,
+                    xp         INTEGER NOT NULL DEFAULT 0,
+                    level      INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id)
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS level_roles (
+                    guild_id INTEGER NOT NULL,
+                    level    INTEGER NOT NULL,
+                    role_id  INTEGER NOT NULL,
+                    PRIMARY KEY (guild_id, level)
+                )
+            """)
             await db.commit()
     except Exception as exc:
         logger.exception("Failed to set up database")
@@ -648,3 +674,227 @@ async def withdraw(
     except Exception as exc:
         logger.exception("Failed to withdraw for user %s", user_id)
         raise DatabaseError(f"withdraw failed: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Guild settings
+# ---------------------------------------------------------------------------
+
+async def get_guild_settings(db_path: str, guild_id: int) -> dict | None:
+    """Return guild settings or None if not configured."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT * FROM guild_settings WHERE guild_id = ?",
+                (guild_id,),
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+    except Exception as exc:
+        logger.exception("Failed to get guild settings for %s", guild_id)
+        raise DatabaseError(
+            f"get_guild_settings failed: {exc}"
+        ) from exc
+
+
+async def save_guild_settings(
+    db_path: str,
+    guild_id: int,
+    *,
+    allowed_channels: str | None = None,
+    blacklist_role_id: int | None = None,
+    xp_boost: float = 0.0,
+    setup_done: int = 1,
+) -> None:
+    """Insert or replace guild settings."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            await conn.execute(
+                "INSERT OR REPLACE INTO guild_settings "
+                "(guild_id, allowed_channels, blacklist_role_id, "
+                "xp_boost, setup_done) VALUES (?, ?, ?, ?, ?)",
+                (
+                    guild_id,
+                    allowed_channels,
+                    blacklist_role_id,
+                    xp_boost,
+                    setup_done,
+                ),
+            )
+            await conn.commit()
+    except Exception as exc:
+        logger.exception("Failed to save guild settings for %s", guild_id)
+        raise DatabaseError(
+            f"save_guild_settings failed: {exc}"
+        ) from exc
+
+
+async def set_xp_boost(
+    db_path: str, guild_id: int, boost: float
+) -> None:
+    """Update the XP boost for a guild."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            await conn.execute(
+                "UPDATE guild_settings SET xp_boost = ? "
+                "WHERE guild_id = ?",
+                (boost, guild_id),
+            )
+            await conn.commit()
+    except Exception as exc:
+        logger.exception("Failed to set xp boost for guild %s", guild_id)
+        raise DatabaseError(f"set_xp_boost failed: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Level roles
+# ---------------------------------------------------------------------------
+
+async def save_level_role(
+    db_path: str, guild_id: int, level: int, role_id: int
+) -> None:
+    """Store the role id for a given level in a guild."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            await conn.execute(
+                "INSERT OR REPLACE INTO level_roles "
+                "(guild_id, level, role_id) VALUES (?, ?, ?)",
+                (guild_id, level, role_id),
+            )
+            await conn.commit()
+    except Exception as exc:
+        logger.exception("Failed to save level role")
+        raise DatabaseError(f"save_level_role failed: {exc}") from exc
+
+
+async def get_level_role(
+    db_path: str, guild_id: int, level: int
+) -> int | None:
+    """Return the role id for a level or None."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            cursor = await conn.execute(
+                "SELECT role_id FROM level_roles "
+                "WHERE guild_id = ? AND level = ?",
+                (guild_id, level),
+            )
+            row = await cursor.fetchone()
+            return row[0] if row else None
+    except Exception as exc:
+        logger.exception("Failed to get level role")
+        raise DatabaseError(f"get_level_role failed: {exc}") from exc
+
+
+async def get_all_level_roles(
+    db_path: str, guild_id: int
+) -> dict[int, int]:
+    """Return {level: role_id} mapping for a guild."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            cursor = await conn.execute(
+                "SELECT level, role_id FROM level_roles "
+                "WHERE guild_id = ?",
+                (guild_id,),
+            )
+            rows = await cursor.fetchall()
+            return {r[0]: r[1] for r in rows}
+    except Exception as exc:
+        logger.exception("Failed to get all level roles")
+        raise DatabaseError(
+            f"get_all_level_roles failed: {exc}"
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Leveling
+# ---------------------------------------------------------------------------
+
+async def get_user_xp(
+    db_path: str, guild_id: int, user_id: int
+) -> dict:
+    """Return {xp, level} for user in guild, creating row if absent."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT * FROM leveling "
+                "WHERE guild_id = ? AND user_id = ?",
+                (guild_id, user_id),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+            await conn.execute(
+                "INSERT INTO leveling (guild_id, user_id) "
+                "VALUES (?, ?)",
+                (guild_id, user_id),
+            )
+            await conn.commit()
+            return {"guild_id": guild_id, "user_id": user_id,
+                    "xp": 0, "level": 0}
+    except Exception as exc:
+        logger.exception("Failed to get user xp")
+        raise DatabaseError(f"get_user_xp failed: {exc}") from exc
+
+
+async def add_user_xp(
+    db_path: str, guild_id: int, user_id: int,
+    xp_delta: int, new_level: int,
+) -> None:
+    """Add xp and set level for a user in a guild."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            await conn.execute(
+                "INSERT INTO leveling (guild_id, user_id, xp, level) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(guild_id, user_id) DO UPDATE SET "
+                "xp = xp + ?, level = ?",
+                (guild_id, user_id, xp_delta, new_level,
+                 xp_delta, new_level),
+            )
+            await conn.commit()
+    except Exception as exc:
+        logger.exception("Failed to add user xp")
+        raise DatabaseError(f"add_user_xp failed: {exc}") from exc
+
+
+async def set_user_xp(
+    db_path: str, guild_id: int, user_id: int,
+    xp: int, level: int,
+) -> None:
+    """Set absolute xp and level for a user in a guild."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            await conn.execute(
+                "INSERT INTO leveling (guild_id, user_id, xp, level) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(guild_id, user_id) DO UPDATE SET "
+                "xp = ?, level = ?",
+                (guild_id, user_id, xp, level, xp, level),
+            )
+            await conn.commit()
+    except Exception as exc:
+        logger.exception("Failed to set user xp")
+        raise DatabaseError(f"set_user_xp failed: {exc}") from exc
+
+
+async def get_xp_leaderboard(
+    db_path: str, guild_id: int, limit: int = 10
+) -> list[dict]:
+    """Return top users by XP in a guild."""
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT user_id, xp, level FROM leveling "
+                "WHERE guild_id = ? ORDER BY xp DESC LIMIT ?",
+                (guild_id, limit),
+            )
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+    except Exception as exc:
+        logger.exception("Failed to get xp leaderboard")
+        raise DatabaseError(
+            f"get_xp_leaderboard failed: {exc}"
+        ) from exc

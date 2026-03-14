@@ -1,4 +1,4 @@
-"""Admin commands — balance management, inspection, broadcast, stats."""
+"""Admin commands — balance management, inspection, broadcast, stats, XP."""
 
 import asyncio
 import logging
@@ -19,6 +19,8 @@ from utils import (
     format_meowney,
     is_admin,
     is_superuser,
+    level_from_xp,
+    xp_for_level,
 )
 
 logger = logging.getLogger(__name__)
@@ -402,6 +404,7 @@ class Admin(commands.GroupCog, group_name="admin"):
             embed = build_embed(
                 title=f"🔍 Inspect: {user.display_name}",
                 color=COLOR_INFO,
+                thumbnail_url=user.display_avatar.url,
                 fields=[
                     ("Balance", format_meowney(u["balance"]), True),
                     (
@@ -664,6 +667,191 @@ class Admin(commands.GroupCog, group_name="admin"):
             )
         except Exception:
             logger.exception("Error in /admin purge_user")
+            embed = build_embed(
+                title="❌ Error",
+                description="Something went wrong.",
+                color=COLOR_ERROR,
+            )
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+
+    # ------------------------------------------------------------------
+    # XP / Leveling admin commands
+    # ------------------------------------------------------------------
+
+    @app_commands.command(
+        name="xp_add",
+        description="Add XP to a user (may trigger level-up)",
+    )
+    @app_commands.describe(
+        user="Target user", amount="Amount of XP to add"
+    )
+    @is_admin()
+    async def xp_add(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User,
+        amount: int,
+    ) -> None:
+        """Add XP to a user and handle level-up if needed."""
+        try:
+            if not interaction.guild:
+                return
+            if amount <= 0:
+                embed = build_embed(
+                    title="❌ Invalid Amount",
+                    description="XP amount must be positive.",
+                    color=COLOR_ERROR,
+                )
+                await interaction.response.send_message(
+                    embed=embed, ephemeral=True
+                )
+                return
+
+            data = await db.get_user_xp(
+                config.DATABASE_PATH,
+                interaction.guild.id,
+                user.id,
+            )
+            old_level = data["level"]
+            new_xp = data["xp"] + amount
+            new_level = level_from_xp(new_xp)
+
+            await db.set_user_xp(
+                config.DATABASE_PATH,
+                interaction.guild.id,
+                user.id,
+                new_xp,
+                new_level,
+            )
+
+            # Assign level role if leveled up
+            if new_level > old_level and isinstance(user, discord.Member):
+                role_id = await db.get_level_role(
+                    config.DATABASE_PATH,
+                    interaction.guild.id,
+                    new_level,
+                )
+                if role_id:
+                    role = interaction.guild.get_role(role_id)
+                    if role:
+                        try:
+                            await user.add_roles(role)
+                        except discord.Forbidden:
+                            pass
+
+            await db.log_admin_action(
+                config.DATABASE_PATH,
+                interaction.user.id,
+                "xp_add",
+                user.id,
+                {"xp_added": amount, "new_xp": new_xp,
+                 "new_level": new_level},
+            )
+
+            embed = build_embed(
+                title="✅ XP Added",
+                description=(
+                    f"Added **{amount:,}** XP to {user.mention}."
+                ),
+                color=COLOR_SUCCESS,
+                fields=[
+                    ("New XP", f"{new_xp:,}", True),
+                    ("Level", f"{old_level} → {new_level}", True),
+                ],
+            )
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+        except Exception:
+            logger.exception("Error in /admin xp_add")
+            embed = build_embed(
+                title="❌ Error",
+                description="Something went wrong.",
+                color=COLOR_ERROR,
+            )
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+
+    @app_commands.command(
+        name="xp_boost",
+        description="Set the XP boost percentage for this server",
+    )
+    @app_commands.describe(
+        percentage="XP boost percentage (minimum 4.5)",
+    )
+    @is_admin()
+    async def xp_boost_cmd(
+        self,
+        interaction: discord.Interaction,
+        percentage: float,
+    ) -> None:
+        """Set the XP boost for the guild."""
+        try:
+            if not interaction.guild:
+                return
+
+            if percentage < config.MIN_XP_BOOST:
+                embed = build_embed(
+                    title="❌ Invalid Boost",
+                    description=(
+                        f"Minimum XP boost is "
+                        f"**{config.MIN_XP_BOOST}%**."
+                    ),
+                    color=COLOR_ERROR,
+                )
+                await interaction.response.send_message(
+                    embed=embed, ephemeral=True
+                )
+                return
+
+            settings = await db.get_guild_settings(
+                config.DATABASE_PATH, interaction.guild.id
+            )
+            if not settings:
+                embed = build_embed(
+                    title="❌ Not Set Up",
+                    description=(
+                        "Run `/setup` first before configuring XP boost."
+                    ),
+                    color=COLOR_ERROR,
+                )
+                await interaction.response.send_message(
+                    embed=embed, ephemeral=True
+                )
+                return
+
+            await db.set_xp_boost(
+                config.DATABASE_PATH,
+                interaction.guild.id,
+                percentage,
+            )
+            # Invalidate settings cache
+            self.bot.invalidate_guild_cache(interaction.guild.id)
+
+            await db.log_admin_action(
+                config.DATABASE_PATH,
+                interaction.user.id,
+                "xp_boost",
+                details={"boost": percentage},
+            )
+
+            embed = build_embed(
+                title="✅ XP Boost Set",
+                description=(
+                    f"XP boost set to **{percentage}%** for this server.\n"
+                    f"All XP gains from games will be increased by "
+                    f"**{percentage}%**."
+                ),
+                color=COLOR_SUCCESS,
+            )
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+        except Exception:
+            logger.exception("Error in /admin xp_boost")
             embed = build_embed(
                 title="❌ Error",
                 description="Something went wrong.",

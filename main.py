@@ -12,7 +12,13 @@ from discord.ext import commands
 
 import config
 import db
-from utils import AdminOnly, COLOR_ERROR, build_embed
+from utils import (
+    AdminOnly,
+    UserBlacklisted,
+    WrongChannel,
+    COLOR_ERROR,
+    build_embed,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +33,8 @@ COGS = [
     "cogs.fun",
     "cogs.help",
     "cogs.admin",
+    "cogs.setup",
+    "cogs.leveling",
 ]
 
 
@@ -40,6 +48,8 @@ class PawsinoBot(commands.Bot):
         )
         self.start_time: datetime | None = None
         self.session: aiohttp.ClientSession = None  # type: ignore[assignment]
+        # Cache guild settings to avoid repeated DB reads
+        self._guild_settings_cache: dict[int, dict | None] = {}
 
     async def setup_hook(self) -> None:
         """Create HTTP session, init database, load cogs, sync commands."""
@@ -66,8 +76,60 @@ class PawsinoBot(commands.Bot):
             await self.session.close()
         await super().close()
 
+    async def get_guild_settings(self, guild_id: int) -> dict | None:
+        """Return cached guild settings, refreshing from DB if needed."""
+        if guild_id not in self._guild_settings_cache:
+            self._guild_settings_cache[guild_id] = (
+                await db.get_guild_settings(config.DATABASE_PATH, guild_id)
+            )
+        return self._guild_settings_cache[guild_id]
+
+    def invalidate_guild_cache(self, guild_id: int) -> None:
+        """Remove a guild from the settings cache."""
+        self._guild_settings_cache.pop(guild_id, None)
+
 
 bot = PawsinoBot()
+
+
+@bot.tree.interaction_check
+async def global_interaction_check(
+    interaction: discord.Interaction,
+) -> bool:
+    """Run blacklist and channel checks before every command."""
+    # Skip checks for DMs
+    if not interaction.guild:
+        return True
+
+    # Allow admin commands to bypass restrictions
+    cmd_name = interaction.command.name if interaction.command else ""
+    parent = getattr(interaction.command, "parent", None)
+    group_name = parent.name if parent else ""
+    if group_name == "admin" or cmd_name == "setup":
+        return True
+
+    settings = await bot.get_guild_settings(interaction.guild.id)
+    if not settings or not settings.get("setup_done"):
+        return True  # Not configured yet — allow all
+
+    # Channel restriction check
+    allowed_raw = settings.get("allowed_channels")
+    if allowed_raw:
+        allowed_ids = {
+            int(c) for c in allowed_raw.split(",") if c.strip().isdigit()
+        }
+        if allowed_ids and interaction.channel_id not in allowed_ids:
+            raise WrongChannel(
+                "This command can only be used in designated channels."
+            )
+
+    # Blacklist role check
+    bl_role_id = settings.get("blacklist_role_id")
+    if bl_role_id and isinstance(interaction.user, discord.Member):
+        if any(r.id == bl_role_id for r in interaction.user.roles):
+            raise UserBlacklisted("You are blacklisted from Pawsino.")
+
+    return True
 
 
 @bot.tree.error
@@ -89,6 +151,36 @@ async def on_app_command_error(
             description=(
                 "This command is restricted to"
                 " Pawsino administrators."
+            ),
+            color=COLOR_ERROR,
+        )
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                embed=embed, ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+    elif isinstance(error, UserBlacklisted):
+        embed = build_embed(
+            title="🚫 Blacklisted",
+            description="You are blacklisted from using Pawsino.",
+            color=COLOR_ERROR,
+        )
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                embed=embed, ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+    elif isinstance(error, WrongChannel):
+        embed = build_embed(
+            title="📛 Wrong Channel",
+            description=(
+                "This command can only be used in designated channels."
             ),
             color=COLOR_ERROR,
         )

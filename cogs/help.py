@@ -65,8 +65,21 @@ class Help(commands.Cog):
                         False,
                     ),
                     (
+                        "📊 Leveling",
+                        (
+                            "`/level [user]` — View your level card\n"
+                            "`/xp_leaderboard` — Top users by XP"
+                        ),
+                        False,
+                    ),
+                    (
                         "🐾 Fun",
                         "`/cat` — Get a random cat picture",
+                        False,
+                    ),
+                    (
+                        "⚙️ Server Setup",
+                        "`/setup` — Configure Pawsino for this server",
                         False,
                     ),
                 ],
