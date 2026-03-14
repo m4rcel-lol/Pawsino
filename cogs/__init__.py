@@ -1,0 +1,1 @@
+"""Pawsino cogs package."""
