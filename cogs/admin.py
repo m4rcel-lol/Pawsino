@@ -780,7 +780,7 @@ class Admin(commands.GroupCog, group_name="admin"):
         description="Set the XP boost percentage for this server",
     )
     @app_commands.describe(
-        percentage="XP boost percentage (minimum 4.5)",
+        percentage="XP boost percentage (maximum 4.5)",
     )
     @is_admin()
     async def xp_boost_cmd(
@@ -793,12 +793,12 @@ class Admin(commands.GroupCog, group_name="admin"):
             if not interaction.guild:
                 return
 
-            if percentage < config.MIN_XP_BOOST:
+            if percentage < 0 or percentage > config.MAX_XP_BOOST:
                 embed = build_embed(
                     title="❌ Invalid Boost",
                     description=(
-                        f"Minimum XP boost is "
-                        f"**{config.MIN_XP_BOOST}%**."
+                        f"XP boost must be between "
+                        f"**0%** and **{config.MAX_XP_BOOST}%**."
                     ),
                     color=COLOR_ERROR,
                 )
