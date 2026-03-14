@@ -32,6 +32,9 @@ SLOT_EMOJIS = [s[1] for s in SLOT_SYMBOLS]
 SLOT_WEIGHTS = [s[2] for s in SLOT_SYMBOLS]
 FRUIT_EMOJIS = {"🍒", "🍋", "🍊", "🍇"}
 
+CRASH_INSTANT_FAIL_CHANCE: float = 0.01
+CRASH_MAX_MULTIPLIER: float = 100.0
+
 RED_NUMBERS: set[int] = {
     1, 3, 5, 7, 9, 12, 14, 16, 18,
     19, 21, 23, 25, 27, 30, 32, 34, 36,
@@ -769,11 +772,11 @@ class Games(commands.Cog):
 
             # Generate crash point using inverse CDF for house edge
             r = random.random()
-            if r < 0.01:
+            if r < CRASH_INSTANT_FAIL_CHANCE:
                 crash_point = 1.0
             else:
                 crash_point = round(1.0 / (1.0 - r), 2)
-            crash_point = min(crash_point, 100.0)
+            crash_point = min(crash_point, CRASH_MAX_MULTIPLIER)
 
             if cashout <= crash_point:
                 winnings = int(bet * cashout) - bet

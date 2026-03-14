@@ -41,14 +41,17 @@ async def setup_database(db_path: str) -> None:
                 )
             """)
             # Migrate: add bank column if it doesn't exist yet
-            try:
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM pragma_table_info('users') "
+                "WHERE name = 'bank'"
+            )
+            has_bank = (await cursor.fetchone())[0]
+            if not has_bank:
                 await db.execute(
                     "ALTER TABLE users ADD COLUMN bank"
                     " INTEGER NOT NULL DEFAULT 0"
                 )
                 await db.commit()
-            except Exception:
-                pass  # column already exists
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS transactions (
                     id            INTEGER PRIMARY KEY AUTOINCREMENT,
