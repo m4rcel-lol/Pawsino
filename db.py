@@ -30,6 +30,7 @@ async def setup_database(db_path: str) -> None:
                 CREATE TABLE IF NOT EXISTS users (
                     user_id      INTEGER PRIMARY KEY,
                     balance      INTEGER NOT NULL DEFAULT 1000,
+                    bank         INTEGER NOT NULL DEFAULT 0,
                     last_daily   TEXT,
                     last_weekly  TEXT,
                     last_monthly TEXT,
@@ -39,6 +40,15 @@ async def setup_database(db_path: str) -> None:
                         DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
                 )
             """)
+            # Migrate: add bank column if it doesn't exist yet
+            try:
+                await db.execute(
+                    "ALTER TABLE users ADD COLUMN bank"
+                    " INTEGER NOT NULL DEFAULT 0"
+                )
+                await db.commit()
+            except Exception:
+                pass  # column already exists
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS transactions (
                     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -555,3 +565,83 @@ async def log_admin_action(
         raise DatabaseError(
             f"log_admin_action failed: {exc}"
         ) from exc
+
+
+async def get_bank_balance(db_path: str, user_id: int) -> int:
+    """Return the current bank balance for a user."""
+    user = await get_or_create_user(db_path, user_id)
+    return user.get("bank", 0)
+
+
+async def deposit(
+    db_path: str, user_id: int, amount: int
+) -> tuple[int, int]:
+    """Move amount from wallet to bank, return (new_wallet, new_bank)."""
+    try:
+        async with aiosqlite.connect(db_path) as db:
+            await get_or_create_user(db_path, user_id)
+            cursor = await db.execute(
+                "SELECT balance, bank FROM users WHERE user_id = ?",
+                (user_id,),
+            )
+            row = await cursor.fetchone()
+            wallet, bank = row[0], row[1]
+            if amount > wallet:
+                raise DatabaseError("Insufficient wallet funds")
+            new_wallet = wallet - amount
+            new_bank = bank + amount
+            await db.execute(
+                "UPDATE users SET balance = ?, bank = ? "
+                "WHERE user_id = ?",
+                (new_wallet, new_bank, user_id),
+            )
+            await db.execute(
+                "INSERT INTO transactions "
+                "(user_id, type, amount, balance_after) "
+                "VALUES (?, ?, ?, ?)",
+                (user_id, "deposit", -amount, new_wallet),
+            )
+            await db.commit()
+            return new_wallet, new_bank
+    except DatabaseError:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to deposit for user %s", user_id)
+        raise DatabaseError(f"deposit failed: {exc}") from exc
+
+
+async def withdraw(
+    db_path: str, user_id: int, amount: int
+) -> tuple[int, int]:
+    """Move amount from bank to wallet, return (new_wallet, new_bank)."""
+    try:
+        async with aiosqlite.connect(db_path) as db:
+            await get_or_create_user(db_path, user_id)
+            cursor = await db.execute(
+                "SELECT balance, bank FROM users WHERE user_id = ?",
+                (user_id,),
+            )
+            row = await cursor.fetchone()
+            wallet, bank = row[0], row[1]
+            if amount > bank:
+                raise DatabaseError("Insufficient bank funds")
+            new_wallet = wallet + amount
+            new_bank = bank - amount
+            await db.execute(
+                "UPDATE users SET balance = ?, bank = ? "
+                "WHERE user_id = ?",
+                (new_wallet, new_bank, user_id),
+            )
+            await db.execute(
+                "INSERT INTO transactions "
+                "(user_id, type, amount, balance_after) "
+                "VALUES (?, ?, ?, ?)",
+                (user_id, "withdraw", amount, new_wallet),
+            )
+            await db.commit()
+            return new_wallet, new_bank
+    except DatabaseError:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to withdraw for user %s", user_id)
+        raise DatabaseError(f"withdraw failed: {exc}") from exc
