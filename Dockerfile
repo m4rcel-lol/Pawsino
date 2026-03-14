@@ -1,6 +1,6 @@
 FROM python:3.11-alpine
 
-RUN apk add --no-cache gcc musl-dev libffi-dev
+RUN apk add --no-cache gcc musl-dev libffi-dev su-exec
 
 WORKDIR /app
 
@@ -13,6 +13,8 @@ RUN mkdir -p /app/data
 
 RUN adduser -D -u 1001 pawsino && chown -R pawsino:pawsino /app
 
-USER pawsino
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python", "main.py"]
