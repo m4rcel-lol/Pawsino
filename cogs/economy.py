@@ -79,6 +79,7 @@ class Economy(commands.Cog):
             embed = build_embed(
                 title=f"💰 {target.display_name}'s Balance",
                 color=COLOR_GOLD,
+                thumbnail_url=target.display_avatar.url,
                 fields=[
                     (
                         "Wallet",
