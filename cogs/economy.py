@@ -2,6 +2,7 @@
 
 import logging
 
+import aiosqlite
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -238,8 +239,6 @@ class Economy(commands.Cog):
 
     async def _get_user_rank(self, user_id: int) -> int:
         """Return the 1-based rank of a user by balance."""
-        import aiosqlite
-
         async with aiosqlite.connect(config.DATABASE_PATH) as conn:
             cursor = await conn.execute(
                 "SELECT COUNT(*) FROM users WHERE balance > "
@@ -314,8 +313,6 @@ class Economy(commands.Cog):
                     embed=embed, ephemeral=True
                 )
                 return
-
-            import aiosqlite
 
             async with aiosqlite.connect(
                 config.DATABASE_PATH

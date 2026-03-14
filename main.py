@@ -6,6 +6,8 @@ import os
 import signal
 import sys
 
+from datetime import datetime
+
 import aiohttp
 import discord
 from discord.ext import commands
@@ -38,7 +40,7 @@ class PawsinoBot(commands.Bot):
             command_prefix=None,
             intents=discord.Intents.default(),
         )
-        self.start_time: discord.utils.MISSING = discord.utils.MISSING
+        self.start_time: datetime | None = None
         self.session: aiohttp.ClientSession = None  # type: ignore[assignment]
 
     async def setup_hook(self) -> None:

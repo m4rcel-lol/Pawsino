@@ -358,7 +358,7 @@ class Games(commands.Cog):
                 outcome = f"You lost {format_meowney(bet)}."
                 color = COLOR_ERROR
 
-            emoji = "🪙" if result == "heads" else "🪙"
+            emoji = "🪙" if result == "heads" else "💰"
             embed = build_embed(
                 title=f"{emoji} Coinflip",
                 description=outcome,
