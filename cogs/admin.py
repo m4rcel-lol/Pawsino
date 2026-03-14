@@ -728,6 +728,7 @@ class Admin(commands.GroupCog, group_name="admin"):
 
             # Assign level role if leveled up
             if new_level > old_level and isinstance(user, discord.Member):
+                role = None
                 role_id = await db.get_level_role(
                     config.DATABASE_PATH,
                     interaction.guild.id,
@@ -740,22 +741,27 @@ class Admin(commands.GroupCog, group_name="admin"):
                             await user.add_roles(role)
                         except discord.Forbidden:
                             pass
-                        # Announce the level-up
-                        try:
-                            announce_embed = build_embed(
-                                title="🎉 Level Up!",
-                                description=(
-                                    f"{user.mention} has reached "
-                                    f"**Level {new_level}** and earned "
-                                    f"the {role.mention} role!"
-                                ),
-                                color=COLOR_GOLD,
-                            )
-                            await interaction.channel.send(
-                                embed=announce_embed
-                            )
-                        except discord.Forbidden:
-                            pass
+
+                # Announce the level-up
+                desc = (
+                    f"{user.mention} has reached "
+                    f"**Level {new_level}**"
+                )
+                if role:
+                    desc += f" and earned the {role.mention} role!"
+                else:
+                    desc += "!"
+                try:
+                    announce_embed = build_embed(
+                        title="🎉 Level Up!",
+                        description=desc,
+                        color=COLOR_GOLD,
+                    )
+                    await interaction.channel.send(
+                        embed=announce_embed
+                    )
+                except discord.Forbidden:
+                    pass
 
             await db.log_admin_action(
                 config.DATABASE_PATH,

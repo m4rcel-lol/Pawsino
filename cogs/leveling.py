@@ -205,6 +205,7 @@ class Leveling(commands.Cog):
 
         # Assign new level role if leveled up
         if new_level > old_level and member:
+            role = None
             role_id = await db.get_level_role(
                 config.DATABASE_PATH, guild_id, new_level
             )
@@ -216,21 +217,26 @@ class Leveling(commands.Cog):
                         await member.add_roles(role)
                     except discord.Forbidden:
                         pass
-                    # Announce the level-up
-                    if channel:
-                        try:
-                            embed = build_embed(
-                                title="🎉 Level Up!",
-                                description=(
-                                    f"{member.mention} has reached "
-                                    f"**Level {new_level}** and earned "
-                                    f"the {role.mention} role!"
-                                ),
-                                color=COLOR_GOLD,
-                            )
-                            await channel.send(embed=embed)
-                        except discord.Forbidden:
-                            pass
+
+            # Announce the level-up
+            if channel:
+                desc = (
+                    f"{member.mention} has reached "
+                    f"**Level {new_level}**"
+                )
+                if role:
+                    desc += f" and earned the {role.mention} role!"
+                else:
+                    desc += "!"
+                try:
+                    embed = build_embed(
+                        title="🎉 Level Up!",
+                        description=desc,
+                        color=COLOR_GOLD,
+                    )
+                    await channel.send(embed=embed)
+                except discord.Forbidden:
+                    pass
             return new_level
         return None
 
