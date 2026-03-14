@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 import signal
 import sys
 from datetime import datetime
@@ -43,24 +42,23 @@ class PawsinoBot(commands.Bot):
         self.session: aiohttp.ClientSession = None  # type: ignore[assignment]
 
     async def setup_hook(self) -> None:
-        """Create HTTP session, init database, load cogs."""
+        """Create HTTP session, init database, load cogs, sync commands."""
         self.session = aiohttp.ClientSession()
         await db.setup_database(config.DATABASE_PATH)
         for cog in COGS:
             await self.load_extension(cog)
             logger.info("Loaded cog: %s", cog)
+        synced = await self.tree.sync()
+        logger.info("Synced %d application commands", len(synced))
 
     async def on_ready(self) -> None:
-        """Log ready status and optionally sync command tree."""
+        """Log ready status."""
         self.start_time = discord.utils.utcnow()
         logger.info(
             "Logged in as %s (ID: %s) in %d guild(s)",
             self.user, self.user.id if self.user else "?",
             len(self.guilds),
         )
-        if os.getenv("SYNC_COMMANDS", "").lower() == "true":
-            synced = await self.tree.sync()
-            logger.info("Synced %d commands", len(synced))
 
     async def close(self) -> None:
         """Close HTTP session then the bot."""
