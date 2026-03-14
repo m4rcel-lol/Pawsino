@@ -62,7 +62,7 @@ PAWSINO_THUMBNAIL_URL: str = os.getenv(
 BASE_XP_PER_LEVEL: int = int(os.getenv("BASE_XP_PER_LEVEL", "100"))
 XP_PER_GAME_WIN: int = int(os.getenv("XP_PER_GAME_WIN", "15"))
 MAX_LEVEL: int = 100
-MIN_XP_BOOST: float = 4.5
+MAX_XP_BOOST: float = 4.5
 
 LEVEL_ROLE_NAMES: list[str] = [
     "Tiny Meow", "Whisker Cat", "Purr Kitten", "Meow Scout", "Cat Pounce",
