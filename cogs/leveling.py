@@ -179,6 +179,7 @@ class Leveling(commands.Cog):
         user_id: int,
         base_xp: int,
         member: discord.Member | None = None,
+        channel: discord.abc.Messageable | None = None,
     ) -> int | None:
         """Grant XP (with boost) and handle level-up. Return new level
         if leveled up, else None."""
@@ -215,6 +216,21 @@ class Leveling(commands.Cog):
                         await member.add_roles(role)
                     except discord.Forbidden:
                         pass
+                    # Announce the level-up
+                    if channel:
+                        try:
+                            embed = build_embed(
+                                title="🎉 Level Up!",
+                                description=(
+                                    f"{member.mention} has reached "
+                                    f"**Level {new_level}** and earned "
+                                    f"the {role.mention} role!"
+                                ),
+                                color=COLOR_GOLD,
+                            )
+                            await channel.send(embed=embed)
+                        except discord.Forbidden:
+                            pass
             return new_level
         return None
 
