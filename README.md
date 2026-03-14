@@ -1,6 +1,6 @@
 # 🐾 Pawsino
 
-Pawsino is an open-source Discord bot that runs a cat-themed casino. Players gamble with **Meowney** (`🪙`) — a completely fake currency. No real money is ever involved. If you're ever bored, come gamble some Meowney!
+Pawsino is an open-source Discord bot that runs a cat-themed casino. Players gamble with **Meowney** (`<:meowney:1482477098256961617>`) — a completely fake currency. No real money is ever involved. If you're ever bored, come gamble some Meowney!
 
 ---
 

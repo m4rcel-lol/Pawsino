@@ -45,8 +45,8 @@ def build_embed(
 
 
 def format_meowney(amount: int) -> str:
-    """Format an integer as '1,234 🪙 Meowney'."""
-    return f"{amount:,} 🪙 Meowney"
+    """Format an integer as '1,234 <emoji> Meowney'."""
+    return f"{amount:,} {config.CURRENCY_EMOJI} Meowney"
 
 
 def remaining_cooldown(
