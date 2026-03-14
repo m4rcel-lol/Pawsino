@@ -3,7 +3,6 @@
 import asyncio
 import logging
 
-import aiosqlite
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -61,26 +60,9 @@ class Admin(commands.GroupCog, group_name="admin"):
                 )
                 return
 
-            old_user = await db.get_or_create_user(
-                config.DATABASE_PATH, user.id
+            old_balance = await db.set_balance(
+                config.DATABASE_PATH, user.id, amount, "admin_set"
             )
-            old_balance = old_user["balance"]
-            delta = amount - old_balance
-
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                await conn.execute(
-                    "UPDATE users SET balance = ? WHERE user_id = ?",
-                    (amount, user.id),
-                )
-                await conn.execute(
-                    "INSERT INTO transactions "
-                    "(user_id, type, amount, balance_after) "
-                    "VALUES (?, ?, ?, ?)",
-                    (user.id, "admin_set", delta, amount),
-                )
-                await conn.commit()
 
             await db.log_admin_action(
                 config.DATABASE_PATH,
@@ -133,27 +115,9 @@ class Admin(commands.GroupCog, group_name="admin"):
     ) -> None:
         """Add or subtract from a user's balance, clamped to 0."""
         try:
-            old_user = await db.get_or_create_user(
-                config.DATABASE_PATH, user.id
+            old_balance, new_balance = await db.add_balance(
+                config.DATABASE_PATH, user.id, amount, "admin_add"
             )
-            old_balance = old_user["balance"]
-            new_balance = max(old_balance + amount, 0)
-            delta = new_balance - old_balance
-
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                await conn.execute(
-                    "UPDATE users SET balance = ? WHERE user_id = ?",
-                    (new_balance, user.id),
-                )
-                await conn.execute(
-                    "INSERT INTO transactions "
-                    "(user_id, type, amount, balance_after) "
-                    "VALUES (?, ?, ?, ?)",
-                    (user.id, "admin_add", delta, new_balance),
-                )
-                await conn.commit()
 
             await db.log_admin_action(
                 config.DATABASE_PATH,
@@ -203,31 +167,10 @@ class Admin(commands.GroupCog, group_name="admin"):
     ) -> None:
         """Reset user to starting balance and clear cooldowns."""
         try:
-            await db.get_or_create_user(
-                config.DATABASE_PATH, user.id
+            await db.reset_user(
+                config.DATABASE_PATH, user.id,
+                config.STARTING_BALANCE,
             )
-
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                await conn.execute(
-                    "UPDATE users SET balance = ?, last_daily = NULL, "
-                    "last_weekly = NULL, last_monthly = NULL "
-                    "WHERE user_id = ?",
-                    (config.STARTING_BALANCE, user.id),
-                )
-                await conn.execute(
-                    "INSERT INTO transactions "
-                    "(user_id, type, amount, balance_after) "
-                    "VALUES (?, ?, ?, ?)",
-                    (
-                        user.id,
-                        "admin_reset",
-                        0,
-                        config.STARTING_BALANCE,
-                    ),
-                )
-                await conn.commit()
 
             await db.log_admin_action(
                 config.DATABASE_PATH,
@@ -278,18 +221,9 @@ class Admin(commands.GroupCog, group_name="admin"):
     ) -> None:
         """Clear a user's daily cooldown."""
         try:
-            await db.get_or_create_user(
-                config.DATABASE_PATH, user.id
+            await db.clear_cooldown(
+                config.DATABASE_PATH, user.id, "daily"
             )
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                await conn.execute(
-                    "UPDATE users SET last_daily = NULL "
-                    "WHERE user_id = ?",
-                    (user.id,),
-                )
-                await conn.commit()
 
             await db.log_admin_action(
                 config.DATABASE_PATH,
@@ -333,18 +267,9 @@ class Admin(commands.GroupCog, group_name="admin"):
     ) -> None:
         """Clear a user's weekly cooldown."""
         try:
-            await db.get_or_create_user(
-                config.DATABASE_PATH, user.id
+            await db.clear_cooldown(
+                config.DATABASE_PATH, user.id, "weekly"
             )
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                await conn.execute(
-                    "UPDATE users SET last_weekly = NULL "
-                    "WHERE user_id = ?",
-                    (user.id,),
-                )
-                await conn.commit()
 
             await db.log_admin_action(
                 config.DATABASE_PATH,
@@ -388,18 +313,9 @@ class Admin(commands.GroupCog, group_name="admin"):
     ) -> None:
         """Clear a user's monthly cooldown."""
         try:
-            await db.get_or_create_user(
-                config.DATABASE_PATH, user.id
+            await db.clear_cooldown(
+                config.DATABASE_PATH, user.id, "monthly"
             )
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                await conn.execute(
-                    "UPDATE users SET last_monthly = NULL "
-                    "WHERE user_id = ?",
-                    (user.id,),
-                )
-                await conn.commit()
 
             await db.log_admin_action(
                 config.DATABASE_PATH,
@@ -459,17 +375,9 @@ class Admin(commands.GroupCog, group_name="admin"):
                 f"Monthly: {u['last_monthly'] or 'Never'}"
             )
 
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                conn.row_factory = aiosqlite.Row
-                cursor = await conn.execute(
-                    "SELECT type, amount, balance_after, created_at "
-                    "FROM transactions WHERE user_id = ? "
-                    "ORDER BY created_at DESC LIMIT 5",
-                    (user.id,),
-                )
-                txs = await cursor.fetchall()
+            txs = await db.get_recent_transactions(
+                config.DATABASE_PATH, user.id, 5
+            )
 
             if txs:
                 tx_lines = []
@@ -596,30 +504,12 @@ class Admin(commands.GroupCog, group_name="admin"):
     ) -> None:
         """Display global bot statistics."""
         try:
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                cursor = await conn.execute(
-                    "SELECT COUNT(*) FROM users"
-                )
-                user_count = (await cursor.fetchone())[0]
-
-                cursor = await conn.execute(
-                    "SELECT COALESCE(SUM(balance), 0) FROM users"
-                )
-                total_meowney = (await cursor.fetchone())[0]
-
-                cursor = await conn.execute(
-                    "SELECT COALESCE(SUM(total_won), 0), "
-                    "COALESCE(SUM(total_lost), 0) FROM users"
-                )
-                row = await cursor.fetchone()
-                total_won, total_lost = row[0], row[1]
-
-                cursor = await conn.execute(
-                    "SELECT COUNT(*) FROM transactions"
-                )
-                tx_count = (await cursor.fetchone())[0]
+            stats = await db.get_global_stats(config.DATABASE_PATH)
+            user_count = stats["user_count"]
+            total_meowney = stats["total_meowney"]
+            total_won = stats["total_won"]
+            total_lost = stats["total_lost"]
+            tx_count = stats["tx_count"]
 
             uptime_str = "Unknown"
             if hasattr(self.bot, "start_time") and self.bot.start_time:
@@ -735,31 +625,9 @@ class Admin(commands.GroupCog, group_name="admin"):
     ) -> None:
         """Delete a user and all their transactions atomically."""
         try:
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                cursor = await conn.execute(
-                    "SELECT COUNT(*) FROM transactions "
-                    "WHERE user_id = ?",
-                    (user.id,),
-                )
-                tx_rows = (await cursor.fetchone())[0]
-
-                cursor = await conn.execute(
-                    "SELECT COUNT(*) FROM users WHERE user_id = ?",
-                    (user.id,),
-                )
-                user_rows = (await cursor.fetchone())[0]
-
-                await conn.execute(
-                    "DELETE FROM transactions WHERE user_id = ?",
-                    (user.id,),
-                )
-                await conn.execute(
-                    "DELETE FROM users WHERE user_id = ?",
-                    (user.id,),
-                )
-                await conn.commit()
+            user_rows, tx_rows = await db.purge_user(
+                config.DATABASE_PATH, user.id
+            )
 
             logger.warning(
                 "User %s (%s) purged by %s (%s)",

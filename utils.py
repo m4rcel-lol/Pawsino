@@ -73,7 +73,7 @@ def format_remaining(td: timedelta) -> str:
     return f"{hours}h {minutes}m {seconds}s"
 
 
-def is_admin():
+def is_admin() -> app_commands.check:
     """App-command check: user must be in ADMIN_IDS."""
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id not in config.ADMIN_IDS:
@@ -84,7 +84,7 @@ def is_admin():
     return app_commands.check(predicate)
 
 
-def is_superuser():
+def is_superuser() -> app_commands.check:
     """App-command check: user must be the superuser."""
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id != config.SUPERUSER_ID:

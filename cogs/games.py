@@ -226,13 +226,13 @@ class BlackjackView(discord.ui.View):
             result = "Dealer busts! You win!"
             new_bal = await db.update_balance(
                 config.DATABASE_PATH, self.user_id,
-                self.bet, "blackjack",
+                self.bet * 2, "blackjack",
             )
         elif player_val > dealer_val:
             result = "You win!"
             new_bal = await db.update_balance(
                 config.DATABASE_PATH, self.user_id,
-                self.bet, "blackjack",
+                self.bet * 2, "blackjack",
             )
         elif player_val == dealer_val:
             result = "Push! Bet refunded."

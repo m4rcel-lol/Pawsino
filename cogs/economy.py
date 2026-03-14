@@ -2,7 +2,6 @@
 
 import logging
 
-import aiosqlite
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -239,14 +238,7 @@ class Economy(commands.Cog):
 
     async def _get_user_rank(self, user_id: int) -> int:
         """Return the 1-based rank of a user by balance."""
-        async with aiosqlite.connect(config.DATABASE_PATH) as conn:
-            cursor = await conn.execute(
-                "SELECT COUNT(*) FROM users WHERE balance > "
-                "(SELECT balance FROM users WHERE user_id = ?)",
-                (user_id,),
-            )
-            row = await cursor.fetchone()
-            return (row[0] if row else 0) + 1
+        return await db.get_user_rank(config.DATABASE_PATH, user_id)
 
     @app_commands.command(
         name="transfer",
@@ -314,53 +306,12 @@ class Economy(commands.Cog):
                 )
                 return
 
-            async with aiosqlite.connect(
-                config.DATABASE_PATH
-            ) as conn:
-                await db.get_or_create_user(
-                    config.DATABASE_PATH, user.id
-                )
-
-                cursor = await conn.execute(
-                    "SELECT balance FROM users WHERE user_id = ?",
-                    (interaction.user.id,),
-                )
-                row = await cursor.fetchone()
-                sender_new = row[0] - amount
-
-                cursor = await conn.execute(
-                    "SELECT balance FROM users WHERE user_id = ?",
-                    (user.id,),
-                )
-                row = await cursor.fetchone()
-                receiver_new = row[0] + amount
-
-                await conn.execute(
-                    "UPDATE users SET balance = ? WHERE user_id = ?",
-                    (sender_new, interaction.user.id),
-                )
-                await conn.execute(
-                    "UPDATE users SET balance = ? WHERE user_id = ?",
-                    (receiver_new, user.id),
-                )
-                await conn.execute(
-                    "INSERT INTO transactions "
-                    "(user_id, type, amount, balance_after) "
-                    "VALUES (?, ?, ?, ?)",
-                    (
-                        interaction.user.id,
-                        "transfer_out",
-                        -amount,
-                        sender_new,
-                    ),
-                )
-                await conn.execute(
-                    "INSERT INTO transactions "
-                    "(user_id, type, amount, balance_after) "
-                    "VALUES (?, ?, ?, ?)",
-                    (user.id, "transfer_in", amount, receiver_new),
-                )
-                await conn.commit()
+            sender_new, receiver_new = await db.transfer_meowney(
+                config.DATABASE_PATH,
+                interaction.user.id,
+                user.id,
+                amount,
+            )
 
             embed = build_embed(
                 title="💸 Transfer Complete",
