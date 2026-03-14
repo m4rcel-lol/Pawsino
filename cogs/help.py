@@ -32,12 +32,22 @@ class Help(commands.Cog):
                     (
                         "💰 Economy",
                         (
-                            "`/balance` — Check your Meowney balance\n"
+                            "`/balance [user]` — Check a Meowney balance\n"
                             "`/daily` — Claim your daily reward\n"
                             "`/weekly` — Claim your weekly reward\n"
                             "`/monthly` — Claim your monthly reward\n"
                             "`/leaderboard` — View the top 10 players\n"
-                            "`/transfer` — Send Meowney to another user"
+                            "`/transfer` — Send Meowney to another user\n"
+                            "`/work` — Do a random job to earn Meowney\n"
+                            "`/rob` — Attempt to rob another user"
+                        ),
+                        False,
+                    ),
+                    (
+                        "🏦 Banking",
+                        (
+                            "`/deposit` — Deposit Meowney into the bank\n"
+                            "`/withdraw` — Withdraw Meowney from the bank"
                         ),
                         False,
                     ),
@@ -48,7 +58,9 @@ class Help(commands.Cog):
                             "`/dice` — Roll a die and predict the result\n"
                             "`/slots` — Spin the slot machine\n"
                             "`/blackjack` — Play a hand of blackjack\n"
-                            "`/roulette` — Spin the roulette wheel"
+                            "`/roulette` — Spin the roulette wheel\n"
+                            "`/crash` — Cash out before the crash!\n"
+                            "`/highlow` — Guess higher or lower"
                         ),
                         False,
                     ),

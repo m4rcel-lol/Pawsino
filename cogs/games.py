@@ -1,4 +1,4 @@
-"""Gambling commands — coinflip, dice, slots, blackjack, roulette."""
+"""Gambling commands — coinflip, dice, slots, blackjack, roulette, crash, highlow."""
 
 import logging
 import random
@@ -31,6 +31,9 @@ SLOT_SYMBOLS: list[tuple[str, str, int, float]] = [
 SLOT_EMOJIS = [s[1] for s in SLOT_SYMBOLS]
 SLOT_WEIGHTS = [s[2] for s in SLOT_SYMBOLS]
 FRUIT_EMOJIS = {"🍒", "🍋", "🍊", "🍇"}
+
+CRASH_INSTANT_FAIL_CHANCE: float = 0.01
+CRASH_MAX_MULTIPLIER: float = 100.0
 
 RED_NUMBERS: set[int] = {
     1, 3, 5, 7, 9, 12, 14, 16, 18,
@@ -91,7 +94,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Invalid Bet",
             description=(
-                f"Bet must be at least {config.MIN_BET} {config.CURRENCY_EMOJI}."
+                f"Bet must be at least {config.MIN_BET} {config.CURRENCY_EMOJI} Meowney."
             ),
             color=COLOR_ERROR,
         )
@@ -103,7 +106,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Invalid Bet",
             description=(
-                f"Bet cannot exceed {config.MAX_BET} {config.CURRENCY_EMOJI}."
+                f"Bet cannot exceed {config.MAX_BET} {config.CURRENCY_EMOJI} Meowney."
             ),
             color=COLOR_ERROR,
         )
@@ -116,7 +119,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Insufficient Funds",
             description=(
-                f"You only have {bal} {config.CURRENCY_EMOJI}. "
+                f"You only have {bal} {config.CURRENCY_EMOJI} Meowney. "
                 f"You can't bet {bet}."
             ),
             color=COLOR_ERROR,
@@ -726,6 +729,169 @@ class Games(commands.Cog):
             await interaction.response.send_message(embed=embed)
         except Exception:
             logger.exception("Error in /roulette")
+            embed = build_embed(
+                title="❌ Error",
+                description="Something went wrong.",
+                color=COLOR_ERROR,
+            )
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+
+    @app_commands.command(
+        name="crash",
+        description="Bet on a crash multiplier — cash out before it crashes!",
+    )
+    @app_commands.describe(
+        bet="Amount to bet",
+        cashout="Multiplier to cash out at (e.g. 2.0)",
+    )
+    async def crash(
+        self,
+        interaction: discord.Interaction,
+        bet: int,
+        cashout: float,
+    ) -> None:
+        """Crash game — choose a multiplier to cash out at."""
+        try:
+            if not await _validate_bet(interaction, bet):
+                return
+
+            if cashout < 1.1:
+                embed = build_embed(
+                    title="❌ Invalid Cashout",
+                    description=(
+                        "Cashout multiplier must be at least 1.1x."
+                    ),
+                    color=COLOR_ERROR,
+                )
+                await interaction.response.send_message(
+                    embed=embed, ephemeral=True
+                )
+                return
+
+            # Generate crash point using inverse CDF for house edge
+            r = random.random()
+            if r < CRASH_INSTANT_FAIL_CHANCE:
+                crash_point = 1.0
+            else:
+                crash_point = round(1.0 / (1.0 - r), 2)
+            crash_point = min(crash_point, CRASH_MAX_MULTIPLIER)
+
+            if cashout <= crash_point:
+                winnings = int(bet * cashout) - bet
+                new_bal = await db.update_balance(
+                    config.DATABASE_PATH, interaction.user.id,
+                    winnings, "crash",
+                )
+                outcome = (
+                    f"💰 You cashed out at **{cashout:.2f}x** and won "
+                    f"{format_meowney(winnings)}!"
+                )
+                color = COLOR_SUCCESS
+            else:
+                new_bal = await db.update_balance(
+                    config.DATABASE_PATH, interaction.user.id,
+                    -bet, "crash",
+                )
+                outcome = (
+                    f"💥 It crashed at **{crash_point:.2f}x** before "
+                    f"your **{cashout:.2f}x** cashout! "
+                    f"You lost {format_meowney(bet)}."
+                )
+                color = COLOR_ERROR
+
+            embed = build_embed(
+                title="📈 Crash",
+                description=outcome,
+                color=color,
+                fields=[
+                    ("Crash Point", f"{crash_point:.2f}x", True),
+                    ("Your Cashout", f"{cashout:.2f}x", True),
+                    ("New Balance", format_meowney(new_bal), False),
+                ],
+            )
+            await interaction.response.send_message(embed=embed)
+        except Exception:
+            logger.exception("Error in /crash")
+            embed = build_embed(
+                title="❌ Error",
+                description="Something went wrong.",
+                color=COLOR_ERROR,
+            )
+            await interaction.response.send_message(
+                embed=embed, ephemeral=True
+            )
+
+    @app_commands.command(
+        name="highlow",
+        description="Guess if the next number is higher or lower",
+    )
+    @app_commands.describe(
+        bet="Amount to bet",
+        choice="Will the next number be higher or lower?",
+    )
+    @app_commands.choices(
+        choice=[
+            app_commands.Choice(name="Higher", value="higher"),
+            app_commands.Choice(name="Lower", value="lower"),
+        ]
+    )
+    async def highlow(
+        self,
+        interaction: discord.Interaction,
+        bet: int,
+        choice: app_commands.Choice[str],
+    ) -> None:
+        """Guess higher or lower."""
+        try:
+            if not await _validate_bet(interaction, bet):
+                return
+
+            first = random.randint(1, 100)
+            second = random.randint(1, 100)
+
+            if first == second:
+                new_bal = await db.get_balance(
+                    config.DATABASE_PATH, interaction.user.id
+                )
+                outcome = (
+                    f"Both numbers are **{first}**! It's a tie — "
+                    f"bet refunded."
+                )
+                color = 0x95A5A6
+            elif (
+                (choice.value == "higher" and second > first)
+                or (choice.value == "lower" and second < first)
+            ):
+                new_bal = await db.update_balance(
+                    config.DATABASE_PATH, interaction.user.id,
+                    bet, "highlow",
+                )
+                outcome = f"You won {format_meowney(bet)}!"
+                color = COLOR_SUCCESS
+            else:
+                new_bal = await db.update_balance(
+                    config.DATABASE_PATH, interaction.user.id,
+                    -bet, "highlow",
+                )
+                outcome = f"You lost {format_meowney(bet)}."
+                color = COLOR_ERROR
+
+            embed = build_embed(
+                title="🔢 Higher or Lower",
+                description=outcome,
+                color=color,
+                fields=[
+                    ("First Number", str(first), True),
+                    ("Second Number", str(second), True),
+                    ("Your Guess", choice.value.capitalize(), True),
+                    ("New Balance", format_meowney(new_bal), False),
+                ],
+            )
+            await interaction.response.send_message(embed=embed)
+        except Exception:
+            logger.exception("Error in /highlow")
             embed = build_embed(
                 title="❌ Error",
                 description="Something went wrong.",

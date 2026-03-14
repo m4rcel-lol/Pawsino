@@ -132,7 +132,7 @@ class Admin(commands.GroupCog, group_name="admin"):
                 description=f"Updated {user.mention}'s balance.",
                 color=COLOR_SUCCESS,
                 fields=[
-                    ("Delta", f"{amount:+,} {config.CURRENCY_EMOJI}", True),
+                    ("Delta", f"{amount:+,} {config.CURRENCY_EMOJI} Meowney", True),
                     (
                         "Result",
                         format_meowney(new_balance),

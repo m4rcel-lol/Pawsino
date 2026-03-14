@@ -28,6 +28,16 @@ CAT_API_URL: str = os.getenv(
 
 CURRENCY_EMOJI: str = "<:meowney:1482477098256961617>"
 
+WORK_MIN_REWARD: int = int(os.getenv("WORK_MIN_REWARD", "50"))
+WORK_MAX_REWARD: int = int(os.getenv("WORK_MAX_REWARD", "300"))
+WORK_COOLDOWN_SECONDS: int = int(os.getenv("WORK_COOLDOWN_SECONDS", "30"))
+WORK_USES_BEFORE_COOLDOWN: int = int(
+    os.getenv("WORK_USES_BEFORE_COOLDOWN", "5")
+)
+
+ROB_SUCCESS_CHANCE: float = 0.5
+ROB_FAIL_PENALTY_PERCENT: float = 0.03
+
 SUPERUSER_ID: int = 1435161291365814325
 
 _admin_ids_raw: str = os.getenv("ADMIN_IDS", "")
