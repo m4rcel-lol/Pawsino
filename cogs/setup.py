@@ -136,7 +136,10 @@ class Setup(commands.Cog):
                 )
 
                 created = 0
-                for lvl in range(1, config.MAX_LEVEL + 1):
+                max_lvl = min(
+                    config.MAX_LEVEL, len(config.LEVEL_ROLE_NAMES)
+                )
+                for lvl in range(1, max_lvl + 1):
                     name = (
                         f"Level {lvl} - "
                         f"{config.LEVEL_ROLE_NAMES[lvl - 1]}"

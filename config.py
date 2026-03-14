@@ -86,3 +86,8 @@ LEVEL_ROLE_NAMES: list[str] = [
     "Meow Transcended", "Cat Enlightened", "Purr Awakened", "Meow Exalted", "Cat Sovereign",
     "Purr Emperor", "Meow Overlord", "Cat Almighty", "Purr Infinite", "Meow Omega",
 ]
+
+assert len(LEVEL_ROLE_NAMES) >= MAX_LEVEL, (
+    f"LEVEL_ROLE_NAMES has {len(LEVEL_ROLE_NAMES)} entries "
+    f"but MAX_LEVEL is {MAX_LEVEL}"
+)

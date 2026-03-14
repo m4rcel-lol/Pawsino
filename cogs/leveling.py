@@ -51,7 +51,6 @@ except ImportError:
 
 def _render_level_card(
     username: str,
-    discriminator: str,
     level: int,
     xp: int,
     xp_next: int,
@@ -113,12 +112,12 @@ def _render_level_card(
             fill=(80, 80, 100),
         )
 
-    # Username and discriminator
+    # Username
     draw.text(
         (BAR_X, 60), username, fill=TEXT_COLOR, font=font_large,
     )
     draw.text(
-        (BAR_X, 95), f"#{discriminator}", fill=SUBTEXT_COLOR,
+        (BAR_X, 95), f"@{username}", fill=SUBTEXT_COLOR,
         font=font_small,
     )
 
@@ -269,10 +268,8 @@ class Leveling(commands.Cog):
                 except Exception:
                     pass
 
-                disc = getattr(target, "discriminator", "0") or "0"
                 buf = _render_level_card(
                     username=target.display_name,
-                    discriminator=disc,
                     level=current_level,
                     xp=current_xp,
                     xp_next=next_level_xp,
