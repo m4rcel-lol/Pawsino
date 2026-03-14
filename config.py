@@ -26,6 +26,8 @@ CAT_API_URL: str = os.getenv(
     "CAT_API_URL", "https://cataas.com/cat?json=true"
 )
 
+CURRENCY_EMOJI: str = "<:meowney:1482477098256961617>"
+
 SUPERUSER_ID: int = 1435161291365814325
 
 _admin_ids_raw: str = os.getenv("ADMIN_IDS", "")

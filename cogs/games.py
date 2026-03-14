@@ -91,7 +91,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Invalid Bet",
             description=(
-                f"Bet must be at least {config.MIN_BET} 🪙."
+                f"Bet must be at least {config.MIN_BET} {config.CURRENCY_EMOJI}."
             ),
             color=COLOR_ERROR,
         )
@@ -103,7 +103,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Invalid Bet",
             description=(
-                f"Bet cannot exceed {config.MAX_BET} 🪙."
+                f"Bet cannot exceed {config.MAX_BET} {config.CURRENCY_EMOJI}."
             ),
             color=COLOR_ERROR,
         )
@@ -116,7 +116,7 @@ async def _validate_bet(
         embed = build_embed(
             title="❌ Insufficient Funds",
             description=(
-                f"You only have {bal} 🪙. "
+                f"You only have {bal} {config.CURRENCY_EMOJI}. "
                 f"You can't bet {bet}."
             ),
             color=COLOR_ERROR,
@@ -358,7 +358,7 @@ class Games(commands.Cog):
                 outcome = f"You lost {format_meowney(bet)}."
                 color = COLOR_ERROR
 
-            emoji = "🪙" if result == "heads" else "💰"
+            emoji = config.CURRENCY_EMOJI if result == "heads" else "💰"
             embed = build_embed(
                 title=f"{emoji} Coinflip",
                 description=outcome,
