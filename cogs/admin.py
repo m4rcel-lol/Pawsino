@@ -740,6 +740,22 @@ class Admin(commands.GroupCog, group_name="admin"):
                             await user.add_roles(role)
                         except discord.Forbidden:
                             pass
+                        # Announce the level-up
+                        try:
+                            announce_embed = build_embed(
+                                title="🎉 Level Up!",
+                                description=(
+                                    f"{user.mention} has reached "
+                                    f"**Level {new_level}** and earned "
+                                    f"the {role.mention} role!"
+                                ),
+                                color=COLOR_GOLD,
+                            )
+                            await interaction.channel.send(
+                                embed=announce_embed
+                            )
+                        except discord.Forbidden:
+                            pass
 
             await db.log_admin_action(
                 config.DATABASE_PATH,

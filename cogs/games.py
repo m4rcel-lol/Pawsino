@@ -144,6 +144,7 @@ class BlackjackView(discord.ui.View):
         dealer_hand: list[tuple[str, str]],
         guild_id: int | None = None,
         member: discord.Member | None = None,
+        channel: discord.abc.Messageable | None = None,
     ) -> None:
         super().__init__(timeout=60)
         self.cog = cog
@@ -154,6 +155,7 @@ class BlackjackView(discord.ui.View):
         self.dealer_hand = dealer_hand
         self.guild_id = guild_id
         self.member = member
+        self.channel = channel
         self.resolved = False
 
     async def interaction_check(
@@ -237,6 +239,7 @@ class BlackjackView(discord.ui.View):
             )
             await self.cog._grant_game_xp(
                 self.guild_id, self.user_id, self.member,
+                self.channel,
             )
         elif player_val > dealer_val:
             result = "You win!"
@@ -246,6 +249,7 @@ class BlackjackView(discord.ui.View):
             )
             await self.cog._grant_game_xp(
                 self.guild_id, self.user_id, self.member,
+                self.channel,
             )
         elif player_val == dealer_val:
             result = "Push! Bet refunded."
@@ -337,6 +341,7 @@ class Games(commands.Cog):
         guild_id: int | None,
         user_id: int,
         member: discord.Member | None = None,
+        channel: discord.abc.Messageable | None = None,
     ) -> None:
         """Grant XP from a game win via the Leveling cog."""
         if not guild_id:
@@ -346,7 +351,7 @@ class Games(commands.Cog):
             try:
                 await leveling.grant_xp(
                     guild_id, user_id,
-                    config.XP_PER_GAME_WIN, member,
+                    config.XP_PER_GAME_WIN, member, channel,
                 )
             except Exception:
                 logger.debug("XP grant failed (non-critical)", exc_info=True)
@@ -391,6 +396,7 @@ class Games(commands.Cog):
                     interaction.guild_id,
                     interaction.user.id,
                     member,
+                    interaction.channel,
                 )
             else:
                 new_bal = await db.update_balance(
@@ -461,6 +467,7 @@ class Games(commands.Cog):
                     interaction.guild_id,
                     interaction.user.id,
                     member,
+                    interaction.channel,
                 )
             else:
                 new_bal = await db.update_balance(
@@ -551,6 +558,7 @@ class Games(commands.Cog):
                     interaction.guild_id,
                     interaction.user.id,
                     member,
+                    interaction.channel,
                 )
             elif net == 0 and payout > 0:
                 new_bal = await db.get_balance(
@@ -632,6 +640,7 @@ class Games(commands.Cog):
                 dealer_hand=dealer_hand,
                 guild_id=interaction.guild_id,
                 member=member,
+                channel=interaction.channel,
             )
 
             player_val = _hand_value(player_hand)
@@ -646,6 +655,7 @@ class Games(commands.Cog):
                     interaction.guild_id,
                     interaction.user.id,
                     member,
+                    interaction.channel,
                 )
                 embed = view._build_game_embed(
                     reveal_dealer=True,
@@ -784,6 +794,7 @@ class Games(commands.Cog):
                     interaction.guild_id,
                     interaction.user.id,
                     member,
+                    interaction.channel,
                 )
             else:
                 new_bal = await db.update_balance(
@@ -879,6 +890,7 @@ class Games(commands.Cog):
                     interaction.guild_id,
                     interaction.user.id,
                     member,
+                    interaction.channel,
                 )
             else:
                 new_bal = await db.update_balance(
@@ -970,6 +982,7 @@ class Games(commands.Cog):
                     interaction.guild_id,
                     interaction.user.id,
                     member,
+                    interaction.channel,
                 )
             else:
                 new_bal = await db.update_balance(
